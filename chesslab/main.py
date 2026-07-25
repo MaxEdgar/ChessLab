@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import traceback
 
@@ -15,6 +16,35 @@ from chesslab.theme import DARK_QSS
 from chesslab.utils import setup_logging
 
 logger = logging.getLogger("chesslab.main")
+
+
+def _guard_wrong_entry_point() -> None:
+    """Detect if the user accidentally ran ``python main.py`` instead of
+    ``python -m chesslab`` and show a helpful message instead of a cryptic
+    ``ModuleNotFoundError``.
+
+    When a file inside a package is run directly, Python adds that file's
+    directory to ``sys.path[0]`` rather than the package root, making
+    ``from chesslab.xxx`` imports fail. We detect this by checking whether
+    ``chesslab`` is importable as a top-level package.
+    """
+    try:
+        import chesslab  # noqa: F401 - verify the package is reachable
+    except ImportError:
+        print(
+            "ERROR: ChessLab must be launched with:\n"
+            "\n"
+            "    python -m chesslab\n"
+            "\n"
+            "Or, if you installed ChessLab via the installer:\n"
+            "\n"
+            "    ./run.sh\n"
+            "\n"
+            "Running main.py directly does not work because Python cannot"
+            " find the 'chesslab' package this way.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 def _install_exception_hook(app: QApplication) -> None:
@@ -43,6 +73,7 @@ def _install_exception_hook(app: QApplication) -> None:
 
 
 def main() -> int:
+    _guard_wrong_entry_point()
     setup_logging(logging.INFO)
     logger.info("Starting ChessLab")
 
