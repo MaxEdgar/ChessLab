@@ -88,6 +88,7 @@ class EngineManager(QObject):
     bestMoveFound = Signal(object, object)
     searchStarted = Signal()
     searchStopped = Signal()
+    oneShotSearchStarted = Signal(str)  # emitted when a one-shot (Hint/Play Best/Threat) search begins
     oneShotMoveReady = Signal(object, str)  # (chess.Move | None, request_tag)
 
     def __init__(self, parent: Optional[QObject] = None) -> None:
@@ -186,7 +187,7 @@ class EngineManager(QObject):
             # timeout as a safety net) makes restarts deterministic.
             self._analysis.stop()
             try:
-                await asyncio.wait_for(self._analysis.wait(), timeout=1.0)
+                await asyncio.wait_for(self._analysis.wait(), timeout=0.2)
             except Exception:  # noqa: BLE001
                 pass
             self._analysis = None
@@ -258,6 +259,7 @@ class EngineManager(QObject):
         'Hint', and 'Show threat'). Result arrives via ``oneShotMoveReady``,
         never a raw Python callback, since this runs on the engine thread.
         """
+        self.oneShotSearchStarted.emit(tag)
         self._run_coro(self._async_best_move(board.copy(), movetime_ms, tag))
 
     async def _async_best_move(self, board: chess.Board, movetime_ms: int, tag: str) -> None:
