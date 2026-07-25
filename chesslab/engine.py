@@ -266,6 +266,15 @@ class EngineManager(QObject):
         if self._engine is None:
             self.oneShotMoveReady.emit(None, tag)
             return
+        # Stop any running analysis first — play() can't run concurrently with
+        # an analysis stream in python-chess (raises CommandState.NEW).
+        if self._analysis is not None:
+            self._analysis.stop()
+            try:
+                await asyncio.wait_for(self._analysis.wait(), timeout=0.2)
+            except Exception:  # noqa: BLE001
+                pass
+            self._analysis = None
         try:
             result = await self._engine.play(
                 board, chess.engine.Limit(time=max(0.05, movetime_ms / 1000.0))

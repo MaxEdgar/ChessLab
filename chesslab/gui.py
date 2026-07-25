@@ -370,16 +370,21 @@ class MainWindow(QMainWindow):
             self.game.board, self.game.board.peek() if self.game.board.move_stack else None
         )
         self.board_view.set_best_move(None)
-        self.board_view.set_threat_move(None)
+        # Don't clear threat_move here — it stays visible until toggled off
+        # or replaced by a new threat result.
         self.engine_panel.clear_lines()
         self._update_opening_status()
         self._update_tablebase_status()
         self._update_perspective_label()
         self._check_game_over()
-        if self._continuous_analysis and self.engine.is_running:
-            self._restart_analysis()
-        if self._threat_mode:
+        if self._threat_mode and self.engine.is_running:
+            # Stop analysis before requesting threat — play() can't run
+            # concurrently with analysis. Analysis restarts after the threat
+            # result arrives (see ``_on_one_shot_move``).
+            self.engine.stop_analysis()
             self._request_threat()
+        elif self._continuous_analysis and self.engine.is_running:
+            self._restart_analysis()
 
     def _on_history_changed(self) -> None:
         self.move_list.rebuild(self.game.moves_played)
@@ -479,7 +484,11 @@ class MainWindow(QMainWindow):
             self.board_view.set_best_move(move)
             info(self, "Hint", f"Engine suggests: {self.game.board.san(move)}")
         elif tag == "threat":
-            self.board_view.set_threat_move(move)
+            if self._threat_mode:
+                self.board_view.set_threat_move(move)
+                # Restart continuous analysis now that the threat search is done
+                if self._continuous_analysis and self.engine.is_running:
+                    self._restart_analysis()
 
     def _check_game_over(self) -> None:
         """Detect checkmate, stalemate, or other game-ending conditions
@@ -611,9 +620,14 @@ class MainWindow(QMainWindow):
     def _on_threat_toggled(self, checked: bool) -> None:
         self._threat_mode = checked
         if checked:
+            # Stop continuous analysis before requesting threat
+            self.engine.stop_analysis()
             self._request_threat()
         else:
             self.board_view.set_threat_move(None)
+            # Resume analysis now that threat mode is off
+            if self._continuous_analysis:
+                self._restart_analysis()
 
     def _on_coach_toggled(self, checked: bool) -> None:
         """Coach mode: show the engine's recommended move with a blue arrow
