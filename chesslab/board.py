@@ -99,6 +99,7 @@ class BoardView(QGraphicsView):
         self._last_move: Optional[chess.Move] = None
         self._best_move: Optional[chess.Move] = None
         self._threat_move: Optional[chess.Move] = None
+        self._coach_from_square: Optional[int] = None
 
         self._build_squares()
         self.set_board(self.board)
@@ -237,6 +238,10 @@ class BoardView(QGraphicsView):
             if king_square is not None:
                 self._highlight_square(king_square, self.palette_theme.check)
 
+        # Coach mode: highlight the piece the engine recommends moving
+        if self._coach_from_square is not None and self._best_move is not None:
+            self._highlight_square(self._coach_from_square, self.palette_theme.selected)
+
         if self.show_best_arrow and self._best_move is not None:
             self._draw_arrow(
                 self._best_move.from_square, self._best_move.to_square, self.palette_theme.arrow
@@ -354,8 +359,19 @@ class BoardView(QGraphicsView):
         self._best_move = move
         self._redraw_overlays()
 
+    @property
+    def best_move(self) -> Optional[chess.Move]:
+        """Return the current best-move arrow target, or ``None``."""
+        return self._best_move
+
     def set_threat_move(self, move: Optional[chess.Move]) -> None:
         self._threat_move = move
+        self._redraw_overlays()
+
+    def set_coach_from_square(self, square: Optional[int]) -> None:
+        """In Coach Mode, highlight the square containing the piece the
+        engine recommends moving. Set to ``None`` to clear."""
+        self._coach_from_square = square
         self._redraw_overlays()
 
     def clear_selection(self) -> None:
@@ -426,9 +442,14 @@ class BoardView(QGraphicsView):
 
         origin = self._selected_square
         piece_at_target = self.board.piece_at(square)
-        if piece_at_target is not None and piece_at_target.color == self.board.piece_at(
-            origin
-        ).color:
+        origin_piece = self.board.piece_at(origin)
+        # Defensive: guard against None dereference. If the piece at origin
+        # was somehow removed between selection and this click, reset selection.
+        if origin_piece is None:
+            self._selected_square = None
+            self._redraw_overlays()
+            return
+        if piece_at_target is not None and piece_at_target.color == origin_piece.color:
             # Clicking another friendly piece re-selects instead of moving.
             self._selected_square = square
             self._redraw_overlays()
