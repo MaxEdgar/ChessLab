@@ -23,12 +23,14 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
     QDockWidget,
     QFileDialog,
     QHBoxLayout,
     QLabel,
     QMainWindow,
     QMessageBox,
+    QPushButton,
     QToolBar,
     QVBoxLayout,
     QWidget,
@@ -97,11 +99,18 @@ class MainWindow(QMainWindow):
         self._pending_classification_mover_white: bool = True
         self._pending_classification_material_before: int = 0
         self._threat_mode = False
+        self._coach_mode = True
+        self._coach_mode_info_shown = False
+        # Track which side the human is playing. The coach arrow only shows
+        # when it's this side's turn — never for the opponent.
+        self._human_side: bool = chess.WHITE
 
         self._build_ui()
         self._connect_signals()
         self._restore_window_state()
         QTimer.singleShot(150, self._ensure_engine_started)
+        # Ask which side to play first
+        QTimer.singleShot(500, self._prompt_for_side)
 
     # -- UI construction ---------------------------------------------------
     def _build_ui(self) -> None:
@@ -208,13 +217,15 @@ class MainWindow(QMainWindow):
 
         self.act_threat = QAction("Show Threat", self)
         self.act_threat.setCheckable(True)
+        self.act_threat.setChecked(False)
+        self.act_threat.setToolTip("Show what the opponent would play if they had an extra move (red arrow)")
         toolbar.addAction(self.act_threat)
-        toolbar.addSeparator()
 
-        self.act_side_white = QAction("Set White to Move", self)
-        toolbar.addAction(self.act_side_white)
-        self.act_side_black = QAction("Set Black to Move", self)
-        toolbar.addAction(self.act_side_black)
+        self.act_coach = QAction("Coach Mode", self)
+        self.act_coach.setCheckable(True)
+        self.act_coach.setChecked(True)
+        self.act_coach.setToolTip("Show the engine's recommended move with a blue arrow and highlight the piece to move")
+        toolbar.addAction(self.act_coach)
 
         self.toolbar = toolbar
 
@@ -255,6 +266,7 @@ class MainWindow(QMainWindow):
         engine_menu.addAction(self.act_best_move)
         engine_menu.addAction(self.act_hint)
         engine_menu.addAction(self.act_threat)
+        engine_menu.addAction(self.act_coach)
         engine_menu.addSeparator()
         self.act_engine_settings = QAction("Engine Settings...", self)
         engine_menu.addAction(self.act_engine_settings)
@@ -274,7 +286,9 @@ class MainWindow(QMainWindow):
         self.status_opening_label = QLabel("")
         self.status_tablebase_label = QLabel("")
         self.status_engine_label = QLabel("Engine: starting...")
+        self.status_perspective_label = QLabel("")
         self.statusBar().addWidget(self.status_opening_label, 1)
+        self.statusBar().addPermanentWidget(self.status_perspective_label)
         self.statusBar().addPermanentWidget(self.status_tablebase_label)
         self.statusBar().addPermanentWidget(self.status_engine_label)
 
@@ -287,8 +301,9 @@ class MainWindow(QMainWindow):
         self.engine.engineReady.connect(self._on_engine_ready)
         self.engine.engineFailed.connect(self._on_engine_failed)
         self.engine.infoUpdated.connect(self._on_info_updated)
-        self.engine.searchStarted.connect(lambda: self.status_engine_label.setText("Analyzing..."))
-        self.engine.searchStopped.connect(lambda: self.status_engine_label.setText("Idle"))
+        self.engine.searchStarted.connect(lambda: self.status_engine_label.setText("Thinking..."))
+        self.engine.searchStopped.connect(lambda: self.status_engine_label.setText("Ready"))
+        self.engine.oneShotSearchStarted.connect(self._on_one_shot_search_started)
         self.engine.oneShotMoveReady.connect(self._on_one_shot_move)
 
         self.board_view.moveAttempted.connect(self._on_move_attempted)
@@ -314,8 +329,7 @@ class MainWindow(QMainWindow):
         self.act_best_move.triggered.connect(self._on_play_best_move)
         self.act_hint.triggered.connect(self._on_hint)
         self.act_threat.toggled.connect(self._on_threat_toggled)
-        self.act_side_white.triggered.connect(lambda: self.game.set_side_to_move(True))
-        self.act_side_black.triggered.connect(lambda: self.game.set_side_to_move(False))
+        self.act_coach.toggled.connect(self._on_coach_toggled)
 
         self.act_engine_settings.triggered.connect(self._on_engine_settings)
         self.act_locate_engine.triggered.connect(self._on_locate_engine)
@@ -344,6 +358,7 @@ class MainWindow(QMainWindow):
         self.status_engine_label.setText("Engine ready")
         if self._continuous_analysis:
             self._restart_analysis()
+        self._update_perspective_label()
 
     def _on_engine_failed(self, message: str) -> None:
         self.status_engine_label.setText("Engine error")
@@ -359,6 +374,8 @@ class MainWindow(QMainWindow):
         self.engine_panel.clear_lines()
         self._update_opening_status()
         self._update_tablebase_status()
+        self._update_perspective_label()
+        self._check_game_over()
         if self._continuous_analysis and self.engine.is_running:
             self._restart_analysis()
         if self._threat_mode:
@@ -403,8 +420,17 @@ class MainWindow(QMainWindow):
             self.engine_panel.update_stats(update.depth, update.seldepth, update.nodes, update.nps)
             self.eval_bar.set_score(update.score)
             self._eval_by_fen[update.board_fen_at_search] = update.score
+            # Show depth in status bar so user sees Stockfish thinking
+            if update.depth > 0:
+                self.status_engine_label.setText(f"Depth {update.depth}/{update.seldepth}")
             if update.pv:
-                self.board_view.set_best_move(update.pv[0])
+                # In coach mode, ONLY show the arrow when it's the human's turn.
+                if self._coach_mode and self.game.board.turn == self._human_side:
+                    self.board_view.set_best_move(update.pv[0])
+                    self.board_view.set_coach_from_square(update.pv[0].from_square)
+                else:
+                    self.board_view.set_best_move(None)
+                    self.board_view.set_coach_from_square(None)
             self._maybe_finish_classification(update)
 
     def _maybe_finish_classification(self, update: EngineInfoUpdate) -> None:
@@ -436,7 +462,15 @@ class MainWindow(QMainWindow):
             material_sacrificed=sacrificed,
         )
 
+    def _on_one_shot_search_started(self, tag: str) -> None:
+        """Show 'Thinking...' when a one-shot search begins (Hint, Play Best, Threat)."""
+        self.status_engine_label.setText("Thinking...")
+
     def _on_one_shot_move(self, move: Optional[chess.Move], tag: str) -> None:
+        # Restore status — if continuous analysis is running the next
+        # _on_info_updated will overwrite with depth; if not, go to Ready.
+        if not self._continuous_analysis:
+            self.status_engine_label.setText("Ready")
         if move is None:
             return
         if tag == "best":
@@ -446,6 +480,35 @@ class MainWindow(QMainWindow):
             info(self, "Hint", f"Engine suggests: {self.game.board.san(move)}")
         elif tag == "threat":
             self.board_view.set_threat_move(move)
+
+    def _check_game_over(self) -> None:
+        """Detect checkmate, stalemate, or other game-ending conditions
+        and show a dialog. Only fires at the TIP of the move line (not when
+        navigating back through history), so PGN browsing won't flood dialogs.
+        """
+        board = self.game.board
+        if not board.is_game_over():
+            return
+        # Only alert when at the latest position (not browsing history)
+        if self.game.current_ply != len(self.game.moves_played):
+            return
+        if board.is_checkmate():
+            winner = "Black" if board.turn == chess.WHITE else "White"
+            human = "White" if self._human_side == chess.WHITE else "Black"
+            if winner == human:
+                info(self, "🏆 Checkmate!", f"{winner} wins by checkmate! Congratulations!")
+            else:
+                info(self, "Checkmate", f"{winner} wins by checkmate.")
+        elif board.is_stalemate():
+            info(self, "Stalemate", "The game is a draw by stalemate.")
+        elif board.is_insufficient_material():
+            info(self, "Draw", "Draw — insufficient material to checkmate.")
+        elif board.is_fifty_moves():
+            info(self, "Draw", "Draw — 50 moves without a capture or pawn move.")
+        elif board.is_repetition():
+            info(self, "Draw", "Draw — threefold repetition.")
+        elif not any(board.generate_legal_moves()):
+            info(self, "Game Over", "No legal moves available.")
 
     def _request_threat(self) -> None:
         if not self.engine.is_running or self.game.board.is_check():
@@ -464,6 +527,8 @@ class MainWindow(QMainWindow):
         ):
             return
         self.game.new_game()
+        # Ask which side to play for the new game
+        QTimer.singleShot(100, self._prompt_for_side)
 
     def _on_open_pgn(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Open PGN", "", "PGN files (*.pgn)")
@@ -549,6 +614,127 @@ class MainWindow(QMainWindow):
             self._request_threat()
         else:
             self.board_view.set_threat_move(None)
+
+    def _on_coach_toggled(self, checked: bool) -> None:
+        """Coach mode: show the engine's recommended move with a blue arrow
+        and highlight the piece, but ONLY when it's YOUR turn. Never shows
+        the opponent's predicted move.
+        """
+        self._coach_mode = checked
+        if checked:
+            self.board_view.set_show_best_arrow(True)
+            if not self._continuous_analysis:
+                self.act_analyze.setChecked(True)
+            self._update_perspective_label()
+        else:
+            self.board_view.set_show_best_arrow(self.ui_prefs.show_best_move_arrow)
+            self.board_view.set_coach_from_square(None)
+            self.status_perspective_label.setText("")
+
+    def _on_set_human_side(self, side: bool) -> None:
+        """Set which side the human is playing. The coach arrow will only
+        show when it's this side's turn. Does NOT change the board turn —
+        White always starts first in chess.
+        """
+        self._human_side = side
+        self._update_perspective_label()
+        # Force clear/reset the coach arrow so stale opponent moves vanish
+        self.board_view.set_best_move(None)
+        self.board_view.set_coach_from_square(None)
+
+    def _prompt_for_side(self) -> None:
+        """Show a dialog asking which side the user wants to play.
+        Called on first launch and after new game.
+        The board stays normal — White starts first.
+        """
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Welcome to ChessLab")
+        layout = QVBoxLayout(dialog)
+
+        label = QLabel("Which side would you like to play?")
+        label.setStyleSheet("font-size: 14px; font-weight: bold; margin-bottom: 8px;")
+        layout.addWidget(label)
+
+        hint = QLabel(
+            "The blue arrow shows your best move when it's your turn.\n"
+            "White always starts first — play any side at any time."
+        )
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+
+        button_row = QHBoxLayout()
+        btn_white = QPushButton("♔  Play as White")
+        btn_white.setMinimumHeight(60)
+        btn_white.setStyleSheet(
+            "font-size: 16px; background-color: #3a4250; color: #e7e9ee;"
+            "border: 2px solid #4fa3d9; border-radius: 8px;"
+        )
+        btn_black = QPushButton("♚  Play as Black")
+        btn_black.setMinimumHeight(60)
+        btn_black.setStyleSheet(
+            "font-size: 16px; background-color: #1a1a1a; color: #e7e9ee;"
+            "border: 2px solid #4fa3d9; border-radius: 8px;"
+        )
+        button_row.addWidget(btn_white)
+        button_row.addWidget(btn_black)
+        layout.addLayout(button_row)
+
+        result = {"side": chess.WHITE}
+
+        def choose_white():
+            result["side"] = chess.WHITE
+            dialog.accept()
+
+        def choose_black():
+            result["side"] = chess.BLACK
+            dialog.accept()
+
+        btn_white.clicked.connect(choose_white)
+        btn_black.clicked.connect(choose_black)
+
+        dialog.exec()
+
+        side = result["side"]
+        self._on_set_human_side(side)
+
+        # Activate coach mode
+        self._coach_mode = True
+        self.board_view.set_show_best_arrow(True)
+        self.act_coach.setChecked(True)
+
+        # Show coach info now that side is known
+        if not self._coach_mode_info_shown:
+            self._coach_mode_info_shown = True
+            human = "White" if side == chess.WHITE else "Black"
+            info(
+                self,
+                "Coach Mode",
+                "Coach Mode shows you your best move with a blue arrow.\n\n"
+                f"You are playing as {human}. The arrow only appears on "
+                f"YOUR turn ({human}'s turn).\n\n"
+                "💡 To start a new game and switch sides, click 'New Game'.\n"
+                "💡 To make your move, click the highlighted piece and "
+                "then the target square, or drag-and-drop.",
+            )
+
+    def _update_perspective_label(self) -> None:
+        """Update the status bar label showing whose turn the analysis is for.
+        Shows a "Guide:" label when coach mode is active, or a simpler
+        perspective label when the engine is running and analyzing.
+        """
+        if not self.engine.is_running or not self._continuous_analysis:
+            self.status_perspective_label.setText("")
+            return
+        human = "White" if self._human_side == chess.WHITE else "Black"
+        turn = self.game.board.turn
+        turn_side = "White" if turn == chess.WHITE else "Black"
+        if self._coach_mode:
+            if turn == self._human_side:
+                self.status_perspective_label.setText(f"Your turn ({human}) — arrow shows your best move")
+            else:
+                self.status_perspective_label.setText(f"Waiting for {turn_side}...")
+        else:
+            self.status_perspective_label.setText(f"Analyzing: {turn_side}'s turn")
 
     def _on_move_attempted(self, move: chess.Move) -> None:
         self.game.push_move(move)
