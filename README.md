@@ -1,176 +1,236 @@
-# ChessLab
+# ♚ ChessLab
 
-A local, Stockfish-powered chess analysis desktop application. Built with
-PySide6 and python-chess, in the spirit of Lichess's analysis board or
-Chess.com's analysis tool, but running entirely on your own machine against
-your own Stockfish install.
+**A local, Stockfish-powered chess analysis desktop application.**
 
-This is not an online chess client. There is no server, no account, and no
-network dependency once Stockfish is installed. You set up a position, move
-either side freely, and get continuous, multi-line engine analysis while you
-explore.
+Built with PySide6 and python-chess, inspired by Lichess's analysis board
+and Chess.com's analysis tool — but running entirely on your own machine
+against your own Stockfish installation.
 
-## Features
+✅ No accounts &nbsp;·&nbsp; ✅ No server &nbsp;·&nbsp; ✅ No network required
+&nbsp;·&nbsp; ✅ Fully offline &nbsp;·&nbsp; ✅ Free & open source (MIT)
 
-- Interactive board: click-to-move and drag-and-drop, legal-move highlighting,
-  last-move and check highlighting, board flipping, adjustable square size,
-  three built-in color themes.
-- Continuous Stockfish analysis: live evaluation, MultiPV top lines, depth,
-  nodes, NPS, principal variations, best-move arrow.
-- Free analysis mode: play either color at will (a manual "set side to move"
-  control), unlimited undo/redo, and branching — playing a new move from an
-  earlier point in the line discards the old continuation, the same as any
-  analysis board.
-- Game management: new game, load/save PGN, load FEN from text or clipboard,
-  copy FEN, reset position.
-- Engine tools: Play Best Move, Hint, Show Threat (what the opponent would do
-  if it were their move again), adjustable Threads/Hash/Skill Level/MultiPV/
-  move time/depth, infinite-analysis toggle.
-- Move-quality classification (Brilliant / Best / Excellent / Good /
-  Inaccuracy / Mistake / Blunder) computed from centipawn loss as you play,
-  shown as colored move-list entries and stored as PGN comments on export.
-- A small offline opening-name lookup (~60 common openings) — no network
-  database required.
-- Optional Syzygy endgame tablebase support: point Engine Settings at a
-  folder of `.rtbw`/`.rtbz` files and positions with few enough pieces show
-  a perfect win/draw/loss + distance-to-zero readout in the status bar.
-- Persistent settings: window layout, engine options, and display preferences
-  are remembered between sessions.
+---
 
-## Screenshots
+## ✨ Features
 
-_Not included in this repository — run the app locally to see it in action._
+- **Interactive board** — click-to-move, drag-and-drop, legal-move dots,
+  last-move/check highlights, board flipping, adjustable size, 3 color themes.
+- **Live Stockfish analysis** — multi-line evaluation (MultiPV), depth, nodes,
+  NPS, principal variations, best-move arrow.
+- **Free analysis mode** — play either side at will, unlimited undo/redo,
+  branching (playing from an earlier point discards the old continuation).
+- **Game management** — New Game, load/save PGN, paste/copy FEN, reset.
+- **Engine tools** — Play Best Move, Hint, adjustable Threads/Hash/Skill
+  Level/MultiPV/depth/time, infinite analysis toggle.
+- **Move quality** — Brilliant / Best / Excellent / Good / Inaccuracy /
+  Mistake / Blunder classification by centipawn loss.
+- **Opening names** — 60+ common openings identified offline.
+- **Syzygy tablebase** — perfect win/draw/loss + distance-to-zero for
+  endgames (tablebase files not bundled; you provide them).
+- **Persistent settings** — window layout, engine options, display
+  preferences remembered between sessions.
 
-## Requirements
+---
 
-- Python 3.10+
-- A Stockfish binary (the engine itself is not bundled)
-- Windows, Linux, or macOS
+## 🚀 Quick Start
 
-### Installing Stockfish
-
-**Ubuntu / Debian:**
-
-```bash
-sudo apt install stockfish
-```
-
-**Windows:**
-
-Download a build from [stockfishchess.org](https://stockfishchess.org/download/)
-and unzip it somewhere convenient (e.g. `C:\Stockfish\stockfish.exe`). ChessLab
-will also let you browse to the `.exe` directly the first time it runs if it
-isn't found automatically.
-
-**macOS:**
-
-```bash
-brew install stockfish
-```
-
-If ChessLab can't find Stockfish automatically on any platform, it will show a
-dialog letting you browse to the executable, and remember your choice.
-
-## Installation
-
-Clone the repository and install the dependencies:
+### One-command install (Linux / macOS)
 
 ```bash
 git clone https://github.com/yourusername/chesslab.git
 cd chesslab
+chmod +x install.sh
+./install.sh
+```
+
+The installer will:
+1. Detect your OS and package manager (apt, pacman, dnf, etc.)
+2. Install any missing system packages (Python, venv, pip)
+3. Create a virtual environment (handles PEP 668 automatically, no
+   `--break-system-packages` needed)
+4. Install PySide6 and python-chess
+5. Install ChessLab as an editable package
+6. Detect or install Stockfish
+7. Verify everything works
+
+### Run
+
+```bash
+./run.sh
+```
+
+That's it. The script activates the venv and launches ChessLab.
+
+### Manual install
+
+If you prefer to do things by hand:
+
+```bash
+git clone https://github.com/yourusername/chesslab.git
+cd chesslab
+
+# Create a virtual environment (required — avoids PEP 668 headaches)
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
-```
 
-Or install it as an editable package (adds a `chesslab` command):
-
-```bash
+# Install ChessLab as an editable package
 pip install -e .
-```
 
-## Running
-
-```bash
+# Launch
 python -m chesslab
 ```
 
-or, if installed as a package:
+### Windows
 
-```bash
-chesslab
+1. Install Python 3.10+ from [python.org](https://www.python.org/downloads/)
+   (check ✅ "Add Python to PATH" during installation).
+2. Download Stockfish from [stockfishchess.org](https://stockfishchess.org/download/)
+   and unzip it.
+3. Open PowerShell or Command Prompt in the ChessLab folder:
+
+```powershell
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+pip install -e .
+python -m chesslab
 ```
 
-## Keyboard shortcuts
+ChessLab will ask you to locate the Stockfish `.exe` on first launch.
 
-| Action              | Shortcut                          |
-|----------------------|-----------------------------------|
-| New game             | Ctrl+N                            |
-| Open PGN             | Ctrl+O                            |
-| Save PGN             | Ctrl+S                            |
-| Undo                 | Ctrl+Z                            |
-| Redo                 | Ctrl+Shift+Z (Ctrl+Y on Windows)  |
-| Copy FEN             | Ctrl+C                            |
-| Paste FEN            | Ctrl+V                            |
-| Start / stop analysis| Space                              |
-| Flip board           | F                                  |
-| Quit                 | Ctrl+Q                            |
+---
 
-## Project structure
+## 📖 Usage
+
+### Board controls
+
+| Action | How |
+|--------|-----|
+| Move a piece | Click the piece, then click the target square (or drag-and-drop) |
+| Promote a pawn | A dialog appears automatically |
+| Flip the board | Press `F` or click the toolbar button |
+| Undo / Redo | `Ctrl+Z` / `Ctrl+Shift+Z` |
+| New Game | `Ctrl+N` |
+
+### Engine analysis
+
+- **Continuous analysis** runs automatically when the engine is ready.
+  The best move for the side to move is shown with a blue arrow.
+- **Space** toggles analysis on/off.
+- **Play Best Move** — the engine plays its recommended move.
+- **Hint** — shows the engine's suggested move without playing it.
+- **Engine Settings** — configure threads, hash size, skill level, MultiPV,
+  move time, depth limit.
+- **Show Threat** — highlights what the opponent would play if it were
+  their turn again (red arrow).
+
+### Managing games
+
+- **Open PGN** (`Ctrl+O`) — load a game from a PGN file.
+- **Save PGN** (`Ctrl+S`) — save the current game as PGN (move quality
+  classifications are stored as comments).
+- **Copy/Paste FEN** (`Ctrl+C` / `Ctrl+V`) — share or set positions.
+
+### Keyboard shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+N` | New Game |
+| `Ctrl+O` | Open PGN |
+| `Ctrl+S` | Save PGN |
+| `Ctrl+Z` | Undo |
+| `Ctrl+Shift+Z` | Redo |
+| `Ctrl+C` | Copy FEN |
+| `Ctrl+V` | Paste FEN |
+| `Space` | Toggle analysis |
+| `F` | Flip board |
+| `Ctrl+Q` | Quit |
+
+---
+
+## 🛠️ Requirements
+
+- **Python 3.10 or newer**
+- **Stockfish** — the chess engine (not bundled; see below)
+- One of: **Windows 10/11**, **Linux** (Ubuntu, Debian, Mint, Pop!_OS,
+  Arch, Fedora, etc.), or **macOS**
+
+### Installing Stockfish
+
+| OS | Command |
+|----|---------|
+| Ubuntu / Debian / Mint / Pop!_OS | `sudo apt install stockfish` |
+| Arch / Manjaro | `sudo pacman -S stockfish` |
+| Fedora | `sudo dnf install stockfish` |
+| macOS (Homebrew) | `brew install stockfish` |
+| Windows | Download from [stockfishchess.org](https://stockfishchess.org/download/) |
+
+The installer (`./install.sh`) can do this for you automatically. If
+Stockfish can't be found, ChessLab shows a dialog to browse to it.
+
+---
+
+## 📁 Project Structure
 
 ```
 chesslab/
-  __init__.py     package metadata
-  __main__.py     `python -m chesslab` entry point
-  main.py         application bootstrap, logging, exception handling
-  gui.py          MainWindow: menus, toolbar, docks, all signal wiring
-  board.py         interactive board widget (QGraphicsView-based)
-  engine.py        Stockfish/UCI integration on a dedicated asyncio thread
-  analysis.py      game state, move history, PGN/FEN I/O, move classification
-  panels.py        eval bar, engine-lines panel, move-list widget
-  dialogs.py       promotion picker, engine-locate and settings dialogs
-  pieces.py        vector piece rendering (python-chess's bundled SVG set)
-  theme.py          dark stylesheet and board color palettes
-  openings.py       small offline opening-name table
-  tablebase.py      optional Syzygy endgame tablebase probing
-  config.py         paths, persisted settings (QSettings-backed)
-  utils.py          logging setup and small formatting helpers
+├── __init__.py      Package metadata and version
+├── __main__.py      Entry point: `python -m chesslab`
+├── main.py          App bootstrap, logging, exception hook
+├── gui.py           MainWindow: menus, toolbar, docks, signal wiring
+├── board.py         Interactive chessboard widget (QGraphicsView)
+├── engine.py        Stockfish/UCI on a dedicated asyncio QThread
+├── analysis.py      Game state, move history, PGN/FEN I/O, classification
+├── panels.py        Eval bar, engine-lines panel, move-list widget
+├── dialogs.py       Promotion picker, engine-locate and settings dialogs
+├── pieces.py        Vector piece rendering (SVG from python-chess)
+├── theme.py         Dark stylesheet + board color palettes
+├── openings.py      Offline opening-name table (60+ entries)
+├── tablebase.py     Syzygy endgame tablebase probing
+├── config.py        Paths, persisted settings (QSettings-backed)
+├── utils.py         Logging setup, formatting helpers
+├── install.sh       Automated installer
+├── run.sh           Launcher script
+├── requirements.txt Python dependencies
+└── pyproject.toml   Package metadata and build config
 ```
 
-### Architecture notes
+### Architecture Notes
 
-- **Engine threading**: `chess.engine` is asyncio-based. `EngineManager` runs
-  a private asyncio event loop on a dedicated `QThread`; all engine calls are
-  scheduled onto it with `asyncio.run_coroutine_threadsafe`, and results come
-  back to the GUI thread exclusively through Qt signals. The GUI thread never
+- **Engine threading** — `chess.engine` is asyncio-based. `EngineManager`
+  runs its own event loop on a dedicated `QThread`; all engine calls are
+  marshalled via `asyncio.run_coroutine_threadsafe`. The GUI thread never
   blocks on engine I/O.
-- **Move history**: `GameController` keeps a linear, branchable move list
-  (`moves_played`) plus a `current_ply` cursor. Undo/redo move the cursor;
-  playing a new move while not at the tip of the line truncates the old
-  continuation, matching how Lichess/Chess.com analysis boards branch.
-- **Free analysis mode**: rather than bypassing python-chess's legality
-  engine (which would make move generation meaningless), the "set side to
-  move" actions simply flip `board.turn`, so the user can hand control to
-  either color and always play fully legal moves for whichever side is set.
-- **Pieces**: rendered from python-chess's bundled `cburnett` SVG piece set,
-  so no image assets ship with the app and pieces stay crisp at any board
-  size.
+- **Move history** — `GameController` keeps a branchable move list with a
+  `current_ply` cursor. Undo/redo move the cursor; playing a new move from
+  a non-tip position truncates the old continuation.
+- **Free analysis mode** — Set side to move via toolbar buttons (flips
+  `board.turn`) so you can enter legal moves for either color.
+- **Pieces** — Rendered from python-chess's bundled `cburnett` SVG set.
+  No external image assets needed. Crisp at any board size.
 
-## Known limitations
+---
 
-- The opening book is a small hand-picked table, not a full ECO database —
-  uncommon lines simply won't show a name.
-- Move classification is a centipawn-loss heuristic computed from the live
-  analysis stream, not a dedicated post-game re-analysis pass; classifying a
-  move requires the engine to have reached a reasonable depth on both the
-  position before and after it, which needs a moment of "thinking time"
-  between moves (normal usage) rather than moves played back-to-back
-  instantly.
-- Syzygy tablebase support depends on you providing tablebase files
-  separately (none are bundled); set the folder in Engine Settings. Files
-  can be downloaded from https://tablebase.lichess.ovh/tables/standard/
-  (a public mirror of the Syzygy tables) or generated yourself with the
-  official Syzygy tools.
+## ⚠️ Known Limitations
 
-## License
+- **Opening book** — A hand-picked table of ~60 openings; uncommon lines
+  show no name. This keeps things fully offline.
+- **Move classification** — A centipawn-loss heuristic from the live
+  analysis stream, not a dedicated re-analysis. Needs a moment of engine
+  thinking between moves.
+- **Syzygy tablebase** — Not bundled. Download from
+  [tablebase.lichess.ovh](https://tablebase.lichess.ovh/tables/standard/)
+  and point Engine Settings to the folder.
+
+---
+
+## 📄 License
 
 MIT — see [LICENSE](LICENSE).
-# ChessLab
+
+---
+
+*Built with ❤️ for chess players who want full control over their analysis.*
