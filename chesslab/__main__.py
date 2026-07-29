@@ -1,4 +1,7 @@
-"""Entry point for ``python -m chesslab``."""
+"""Entry point for ``python -m chesslab``.
+
+Supports ``--float`` to launch the floating overlay chessboard.
+"""
 
 from __future__ import annotations
 
@@ -28,4 +31,5 @@ _guard_wrong_entry_point()
 
 from chesslab.main import main  # noqa: E402 - import after guard
 
-sys.exit(main())
+float_mode = "--float" in sys.argv
+sys.exit(main(float_mode=float_mode))

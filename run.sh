@@ -49,4 +49,5 @@ fi
 
 # ─── Launch ──────────────────────────────────────────────────────────────
 echo -e "${GREEN}Starting ChessLab...${NC}"
-exec "$PYTHON" -m chesslab
+# Pass any command-line arguments (e.g. --float) through to Python
+exec "$PYTHON" -m chesslab "$@"

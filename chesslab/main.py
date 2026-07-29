@@ -72,10 +72,10 @@ def _install_exception_hook(app: QApplication) -> None:
     sys.excepthook = handle
 
 
-def main() -> int:
+def main(float_mode: bool = False) -> int:
     _guard_wrong_entry_point()
     setup_logging(logging.INFO)
-    logger.info("Starting ChessLab")
+    logger.info("Starting ChessLab (float_mode=%s)", float_mode)
 
     if hasattr(Qt.ApplicationAttribute, "AA_EnableHighDpiScaling"):
         QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
@@ -89,11 +89,16 @@ def main() -> int:
 
     _install_exception_hook(app)
 
-    window = MainWindow()
+    if float_mode:
+        from chesslab.floating import FloatingBoardWindow
+
+        window = FloatingBoardWindow()
+    else:
+        window = MainWindow()
     window.show()
 
     return app.exec()
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(float_mode="--float" in sys.argv))
