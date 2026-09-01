@@ -24,7 +24,7 @@ BOARD_THEMES: dict[str, BoardPalette] = {
         last_move="#d9a44680",
         legal_dot="#e8e8e880",
         check="#c0405080",
-        arrow="#4fa3d9c0",
+        arrow="#e74c3cc0",  # red arrow
     ),
     "walnut": BoardPalette(
         light_square="#e8c99b",
@@ -33,7 +33,7 @@ BOARD_THEMES: dict[str, BoardPalette] = {
         last_move="#f6f66980",
         legal_dot="#20202070",
         check="#e0405090",
-        arrow="#2f6fa8c0",
+        arrow="#e74c3cc0",  # red arrow
     ),
     "graphite": BoardPalette(
         light_square="#bfbfbf",
@@ -42,7 +42,7 @@ BOARD_THEMES: dict[str, BoardPalette] = {
         last_move="#e0c04680",
         legal_dot="#10101070",
         check="#d1394680",
-        arrow="#4a90d9c0",
+        arrow="#e74c3cc0",  # red arrow
     ),
 }
 

@@ -34,10 +34,10 @@ LOG_DIR = APP_DATA_DIR / "logs"
 LOG_FILE = LOG_DIR / "chesslab.log"
 
 DEFAULT_ENGINE_THREADS = max(1, (os.cpu_count() or 4) - 1)
-DEFAULT_ENGINE_HASH_MB = 256
+DEFAULT_ENGINE_HASH_MB = 512  # increased for better analysis
 DEFAULT_MULTIPV = 1
 DEFAULT_SKILL_LEVEL = 18  # 0-20, 20 = full strength; 18 = strong human ~2200 Elo
-DEFAULT_MOVE_TIME_MS = 3000
+DEFAULT_MOVE_TIME_MS = 5000  # increased for deeper search
 DEFAULT_DEPTH_LIMIT = 0  # 0 = unlimited / time-based
 DEFAULT_LIMIT_STRENGTH = True  # enable UCI_LimitStrength for human-like play
 DEFAULT_UCI_ELO = 2200  # target Elo when limit_strength is on
@@ -154,7 +154,7 @@ class EngineOptions:
 
 @dataclass
 class UiPreferences:
-    board_theme: str = "midnight"
+    board_theme: str = "walnut"
     piece_set: str = "cburnett"
     board_flipped: bool = False
     show_coordinates: bool = True

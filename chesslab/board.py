@@ -243,8 +243,14 @@ class BoardView(QGraphicsView):
             self._highlight_square(self._coach_from_square, self.palette_theme.selected)
 
         if self.show_best_arrow and self._best_move is not None:
+            # Check if this move leads to checkmate
+            arrow_color = self.palette_theme.arrow
+            test_board = self.board.copy()
+            test_board.push(self._best_move)
+            if test_board.is_checkmate():
+                arrow_color = "#2ecc71c0"  # green for checkmate
             self._draw_arrow(
-                self._best_move.from_square, self._best_move.to_square, self.palette_theme.arrow
+                self._best_move.from_square, self._best_move.to_square, arrow_color
             )
         if self._threat_move is not None:
             self._draw_arrow(
