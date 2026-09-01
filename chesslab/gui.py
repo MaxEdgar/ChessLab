@@ -268,8 +268,6 @@ class MainWindow(QMainWindow):
         engine_menu.addSeparator()
         self.act_engine_settings = QAction("Engine Settings...", self)
         engine_menu.addAction(self.act_engine_settings)
-        self.act_locate_engine = QAction("Locate Stockfish...", self)
-        engine_menu.addAction(self.act_locate_engine)
 
         view_menu = menu_bar.addMenu("&View")
         view_menu.addAction(self.act_flip)
@@ -328,7 +326,6 @@ class MainWindow(QMainWindow):
         self.act_anti_engine.toggled.connect(self._on_anti_engine)
 
         self.act_engine_settings.triggered.connect(self._on_engine_settings)
-        self.act_locate_engine.triggered.connect(self._on_locate_engine)
         self.act_about.triggered.connect(self._on_about)
 
     # -- engine bootstrap ----------------------------------------------------
@@ -828,9 +825,6 @@ class MainWindow(QMainWindow):
         self.board_view.set_show_best_arrow(self.ui_prefs.show_best_move_arrow)
         if self._continuous_analysis:
             self._restart_analysis()
-
-    def _on_locate_engine(self) -> None:
-        self._prompt_for_stockfish()
 
     def _on_about(self) -> None:
         info(
