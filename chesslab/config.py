@@ -166,8 +166,18 @@ class UiPreferences:
 class AppSettings:
     """Typed wrapper around QSettings for persisted application state."""
 
+    # Bump this whenever default settings change to force a refresh.
+    _SETTINGS_VERSION = 2
+
     def __init__(self) -> None:
         self._qs = QSettings(ORG_NAME, APP_NAME)
+        # Clear stale cached settings when defaults change.
+        saved_version = int(self._qs.value("meta/version", 0))
+        if saved_version < self._SETTINGS_VERSION:
+            # Theme default changed from midnight to walnut
+            if saved_version < 2:
+                self._qs.remove("ui/board_theme")
+            self._qs.setValue("meta/version", self._SETTINGS_VERSION)
 
     # -- engine ----------------------------------------------------------
     @property
