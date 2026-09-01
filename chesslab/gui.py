@@ -212,19 +212,13 @@ class MainWindow(QMainWindow):
         self.act_analyze.setShortcut(QKeySequence("Space"))
         toolbar.addAction(self.act_analyze)
 
-        self.act_best_move = QAction("Play Best Move", self)
-        toolbar.addAction(self.act_best_move)
-
-        self.act_hint = QAction("Hint", self)
-        toolbar.addAction(self.act_hint)
-
         self.act_threat = QAction("Show Threat", self)
         self.act_threat.setCheckable(True)
         self.act_threat.setChecked(False)
         self.act_threat.setToolTip("Show what the opponent would play if they had an extra move (red arrow)")
         toolbar.addAction(self.act_threat)
 
-        self.act_coach = QAction("Coach Mode", self)
+        self.act_coach = QAction("Show Lines", self)
         self.act_coach.setCheckable(True)
         self.act_coach.setChecked(True)
         self.act_coach.setToolTip("Show the engine's recommended move with a blue arrow and highlight the piece to move")
@@ -232,12 +226,10 @@ class MainWindow(QMainWindow):
 
         self.act_anti_engine = QAction("Human-Like", self)
         self.act_anti_engine.setCheckable(True)
-        self.act_anti_engine.setChecked(False)
-        self.act_anti_engine.setShortcut(QKeySequence("H"))
+        self.act_anti_engine.setChecked(True)
         self.act_anti_engine.setToolTip(
-            "Switch engine to human-like play (1800 Elo). "
-            "Coach arrow shows natural, professional-quality moves "
-            "instead of robotic engine lines."
+            "Engine plays at 1800 Elo human-like strength. "
+            "Shows natural, professional-quality moves."
         )
         toolbar.addAction(self.act_anti_engine)
 
@@ -277,8 +269,6 @@ class MainWindow(QMainWindow):
 
         engine_menu = menu_bar.addMenu("&Engine")
         engine_menu.addAction(self.act_analyze)
-        engine_menu.addAction(self.act_best_move)
-        engine_menu.addAction(self.act_hint)
         engine_menu.addAction(self.act_threat)
         engine_menu.addAction(self.act_coach)
         engine_menu.addAction(self.act_anti_engine)
@@ -341,8 +331,6 @@ class MainWindow(QMainWindow):
 
         self.act_flip.triggered.connect(self._on_flip)
         self.act_analyze.toggled.connect(self._on_analyze_toggled)
-        self.act_best_move.triggered.connect(self._on_play_best_move)
-        self.act_hint.triggered.connect(self._on_hint)
         self.act_threat.toggled.connect(self._on_threat_toggled)
         self.act_coach.toggled.connect(self._on_coach_toggled)
         self.act_anti_engine.toggled.connect(self._on_anti_engine)
@@ -372,6 +360,9 @@ class MainWindow(QMainWindow):
 
     def _on_engine_ready(self) -> None:
         self.status_engine_label.setText("Engine ready")
+        # Apply human-like settings if the button is checked (default ON)
+        if self.act_anti_engine.isChecked():
+            self._apply_human_like_settings()
         if self._continuous_analysis:
             self._restart_analysis()
         self._update_perspective_label()
@@ -622,33 +613,9 @@ class MainWindow(QMainWindow):
         else:
             self.engine.stop_analysis()
 
-    def _on_play_best_move(self) -> None:
-        if not self.engine.is_running:
-            warn(self, "Engine", "Engine is not running yet.")
-            return
-        self.engine.request_best_move(self.game.board, self.engine_options.move_time_ms, tag="best")
-
-    def _on_hint(self) -> None:
-        if not self.engine.is_running:
-            warn(self, "Engine", "Engine is not running yet.")
-            return
-        self.engine.request_best_move(self.game.board, self.engine_options.move_time_ms, tag="hint")
-
-    def _on_anti_engine(self, checked: bool = True) -> None:
-        """Toggle human-like move mode.
-
-        When ON, switches the engine to play at a human-like strength
-        (skill level 15, UCI_LimitStrength, 1800 Elo). The coach arrow
-        then shows moves that a strong human would play -- natural,
-        principled, and easy to understand.
-
-        When OFF, restores the original engine settings.
-        """
-        if not self.engine.is_running:
-            warn(self, "Engine", "Engine is not running yet.")
-            return
-        if checked:
-            # Save current settings so we can restore them later
+    def _apply_human_like_settings(self) -> None:
+        """Switch engine to human-like play (1800 Elo)."""
+        if not hasattr(self, '_saved_engine_options'):
             self._saved_engine_options = EngineOptions(
                 threads=self.engine_options.threads,
                 hash_mb=self.engine_options.hash_mb,
@@ -660,20 +627,33 @@ class MainWindow(QMainWindow):
                 limit_strength=self.engine_options.limit_strength,
                 uci_elo=self.engine_options.uci_elo,
             )
-            # Switch to human-like settings
-            self.engine_options.skill_level = 15
-            self.engine_options.limit_strength = True
-            self.engine_options.uci_elo = 1800
-            self.engine.set_options(self.engine_options)
-            self.status_engine_label.setText("Human-like mode ON (1800 Elo)")
-            logger.info("Anti-engine mode ON: skill=15, elo=1800")
+        self.engine_options.skill_level = 15
+        self.engine_options.limit_strength = True
+        self.engine_options.uci_elo = 1800
+        self.engine.set_options(self.engine_options)
+        self.status_engine_label.setText("Human-like mode (1800 Elo)")
+        logger.info("Human-like mode ON: skill=15, elo=1800")
+
+    def _restore_engine_settings(self) -> None:
+        """Restore engine to full strength settings."""
+        if hasattr(self, '_saved_engine_options'):
+            self.engine_options = self._saved_engine_options
+            del self._saved_engine_options
+        self.engine.set_options(self.engine_options)
+        self.status_engine_label.setText("Engine at full strength")
+        logger.info("Human-like mode OFF: restored original settings")
+
+    def _on_anti_engine(self, checked: bool = True) -> None:
+        """Toggle human-like move mode."""
+        if not self.engine.is_running:
+            warn(self, "Engine", "Engine is not running yet.")
+            return
+        if checked:
+            self._apply_human_like_settings()
         else:
-            # Restore original settings
-            if hasattr(self, '_saved_engine_options'):
-                self.engine_options = self._saved_engine_options
-            self.engine.set_options(self.engine_options)
-            self.status_engine_label.setText("Engine restored to full strength")
-            logger.info("Anti-engine mode OFF: restored original settings")
+            self._restore_engine_settings()
+        if self._continuous_analysis:
+            self._restart_analysis()
         # Restart analysis with new settings
         if self._continuous_analysis:
             self._restart_analysis()

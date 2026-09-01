@@ -92,19 +92,11 @@ class _TitleBar(QWidget):
         )
         layout.addWidget(self.btn_flip)
 
-        self.btn_hint = QPushButton("?")
-        self.btn_hint.setFixedSize(24, 24)
-        self.btn_hint.setToolTip("Hint (H)")
-        self.btn_hint.setStyleSheet(
-            "color: #cdd6f4; background: #313244; border: none;"
-            " border-radius: 4px; font-weight: bold;"
-        )
-        layout.addWidget(self.btn_hint)
-
         self.btn_human = QPushButton("H")
         self.btn_human.setFixedSize(24, 24)
-        self.btn_human.setToolTip("Human-Like mode: engine plays at 1800 Elo")
+        self.btn_human.setToolTip("Human-Like: engine plays at 1800 Elo")
         self.btn_human.setCheckable(True)
+        self.btn_human.setChecked(True)
         self.btn_human.setStyleSheet(
             "color: #cdd6f4; background: #313244; border: none;"
             " border-radius: 4px; font-weight: bold;"
@@ -206,7 +198,6 @@ class FloatingBoardWindow(QWidget):
         self.title_bar.window_drag_moved.connect(self._on_title_drag_move)
         self.title_bar.btn_new.clicked.connect(self._on_new_game)
         self.title_bar.btn_flip.clicked.connect(self._on_flip)
-        self.title_bar.btn_hint.clicked.connect(self._on_hint)
         self.title_bar.btn_human.clicked.connect(self._on_anti_engine)
         self.title_bar.btn_close.clicked.connect(self.close)
         main_layout.addWidget(self.title_bar)
@@ -324,8 +315,6 @@ class FloatingBoardWindow(QWidget):
         act_new = menu.addAction("New Game\tCtrl+N")
         act_flip = menu.addAction("Flip Board\tF")
         menu.addSeparator()
-        act_hint = menu.addAction("Hint\tH")
-        menu.addSeparator()
         act_close = menu.addAction("Close\tEsc")
 
         chosen = menu.exec(pos)
@@ -333,8 +322,6 @@ class FloatingBoardWindow(QWidget):
             self._on_new_game()
         elif chosen == act_flip:
             self._on_flip()
-        elif chosen == act_hint:
-            self._on_hint()
         elif chosen == act_close:
             self.close()
 
@@ -384,6 +371,9 @@ class FloatingBoardWindow(QWidget):
 
     def _on_engine_ready(self) -> None:
         self.status_label.setText("Engine ready")
+        # Apply human-like settings if the button is checked (default ON)
+        if self.title_bar.btn_human.isChecked():
+            self._apply_human_like_settings()
         if self._continuous_analysis:
             self._restart_analysis()
 
@@ -499,21 +489,9 @@ class FloatingBoardWindow(QWidget):
         self.ui_prefs.board_flipped = not self.ui_prefs.board_flipped
         self.board_view.set_flipped(self.ui_prefs.board_flipped)
 
-    def _on_hint(self) -> None:
-        if not self.engine.is_running:
-            warn(self, "Engine", "Engine is not running yet.")
-            return
-        self.engine.request_best_move(
-            self.game.board, self.engine_options.move_time_ms, tag="hint"
-        )
-
-    def _on_anti_engine(self) -> None:
-        """Toggle human-like move mode for the floating window."""
-        if not self.engine.is_running:
-            warn(self, "Engine", "Engine is not running yet.")
-            return
+    def _apply_human_like_settings(self) -> None:
+        """Switch engine to human-like play (1800 Elo)."""
         if not hasattr(self, '_saved_engine_options'):
-            # Save current settings and switch to human-like
             self._saved_engine_options = EngineOptions(
                 threads=self.engine_options.threads,
                 hash_mb=self.engine_options.hash_mb,
@@ -525,17 +503,29 @@ class FloatingBoardWindow(QWidget):
                 limit_strength=self.engine_options.limit_strength,
                 uci_elo=self.engine_options.uci_elo,
             )
-            self.engine_options.skill_level = 15
-            self.engine_options.limit_strength = True
-            self.engine_options.uci_elo = 1800
-            self.engine.set_options(self.engine_options)
-            self.title_bar.set_status("Human-like mode ON")
-        else:
-            # Restore original settings
+        self.engine_options.skill_level = 15
+        self.engine_options.limit_strength = True
+        self.engine_options.uci_elo = 1800
+        self.engine.set_options(self.engine_options)
+        self.title_bar.set_status("Human-like mode (1800 Elo)")
+
+    def _restore_engine_settings(self) -> None:
+        """Restore engine to full strength settings."""
+        if hasattr(self, '_saved_engine_options'):
             self.engine_options = self._saved_engine_options
             del self._saved_engine_options
-            self.engine.set_options(self.engine_options)
-            self.title_bar.set_status("ChessLab")
+        self.engine.set_options(self.engine_options)
+        self.title_bar.set_status("ChessLab")
+
+    def _on_anti_engine(self) -> None:
+        """Toggle human-like move mode for the floating window."""
+        if not self.engine.is_running:
+            warn(self, "Engine", "Engine is not running yet.")
+            return
+        if self.title_bar.btn_human.isChecked():
+            self._apply_human_like_settings()
+        else:
+            self._restore_engine_settings()
         if self._continuous_analysis:
             self._restart_analysis()
 
