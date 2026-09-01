@@ -230,11 +230,14 @@ class MainWindow(QMainWindow):
         self.act_coach.setToolTip("Show the engine's recommended move with a blue arrow and highlight the piece to move")
         toolbar.addAction(self.act_coach)
 
-        self.act_anti_engine = QAction("Human-Like Move", self)
+        self.act_anti_engine = QAction("Human-Like", self)
+        self.act_anti_engine.setCheckable(True)
+        self.act_anti_engine.setChecked(False)
         self.act_anti_engine.setShortcut(QKeySequence("H"))
         self.act_anti_engine.setToolTip(
-            "Suggest a strong, human-like move instead of a robotic engine line. "
-            "Good for studying professional-quality moves."
+            "Switch engine to human-like play (1800 Elo). "
+            "Coach arrow shows natural, professional-quality moves "
+            "instead of robotic engine lines."
         )
         toolbar.addAction(self.act_anti_engine)
 
@@ -342,8 +345,7 @@ class MainWindow(QMainWindow):
         self.act_hint.triggered.connect(self._on_hint)
         self.act_threat.toggled.connect(self._on_threat_toggled)
         self.act_coach.toggled.connect(self._on_coach_toggled)
-        self.act_anti_engine.triggered.connect(self._on_anti_engine)
-        self.engine.antiEngineCandidates.connect(self._on_anti_engine_candidates)
+        self.act_anti_engine.toggled.connect(self._on_anti_engine)
 
         self.act_engine_settings.triggered.connect(self._on_engine_settings)
         self.act_locate_engine.triggered.connect(self._on_locate_engine)
@@ -632,43 +634,49 @@ class MainWindow(QMainWindow):
             return
         self.engine.request_best_move(self.game.board, self.engine_options.move_time_ms, tag="hint")
 
-    def _on_anti_engine(self) -> None:
-        """Request a human-like move from the anti-engine analysis."""
+    def _on_anti_engine(self, checked: bool = True) -> None:
+        """Toggle human-like move mode.
+
+        When ON, switches the engine to play at a human-like strength
+        (skill level 15, UCI_LimitStrength, 1800 Elo). The coach arrow
+        then shows moves that a strong human would play -- natural,
+        principled, and easy to understand.
+
+        When OFF, restores the original engine settings.
+        """
         if not self.engine.is_running:
             warn(self, "Engine", "Engine is not running yet.")
             return
-        self.status_engine_label.setText("Finding human-like move...")
-        self.anti_engine.analyze(self.game.board, self.engine_options.move_time_ms)
-
-    def _on_anti_engine_candidates(self, candidates: list) -> None:
-        """Handle the result from the anti-engine analysis."""
-        move = self.anti_engine.get_best_human_move()
-        if move is not None:
-            # Show the move with a special green arrow on the board
-            self.board_view.set_best_move(move)
-            san = self.game.board.san(move)
-            # Find the human-like score for the status bar
-            best_c = self.anti_engine.get_candidates()[0] if self.anti_engine.get_candidates() else None
-            if best_c:
-                info(
-                    self,
-                    "Human-Like Move",
-                    f"Suggested move: {san}\n\n"
-                    f"Engine eval: {best_c.engine_score / 100:+.2f}\n"
-                    f"Human score: {best_c.human_score:.0f}\n"
-                    f"Combined: {best_c.combined:.0f}\n\n"
-                    f"This move is strong AND looks natural -- "
-                    f"the kind of move a professional would play.",
-                )
-            else:
-                info(self, "Human-Like Move", f"Suggested move: {san}")
+        if checked:
+            # Save current settings so we can restore them later
+            self._saved_engine_options = EngineOptions(
+                threads=self.engine_options.threads,
+                hash_mb=self.engine_options.hash_mb,
+                skill_level=self.engine_options.skill_level,
+                multipv=self.engine_options.multipv,
+                move_time_ms=self.engine_options.move_time_ms,
+                depth_limit=self.engine_options.depth_limit,
+                infinite_analysis=self.engine_options.infinite_analysis,
+                limit_strength=self.engine_options.limit_strength,
+                uci_elo=self.engine_options.uci_elo,
+            )
+            # Switch to human-like settings
+            self.engine_options.skill_level = 15
+            self.engine_options.limit_strength = True
+            self.engine_options.uci_elo = 1800
+            self.engine.set_options(self.engine_options)
+            self.status_engine_label.setText("Human-like mode ON (1800 Elo)")
+            logger.info("Anti-engine mode ON: skill=15, elo=1800")
         else:
-            info(self, "Human-Like Move", "No human-like move found for this position.")
-        # Restore engine status
+            # Restore original settings
+            if hasattr(self, '_saved_engine_options'):
+                self.engine_options = self._saved_engine_options
+            self.engine.set_options(self.engine_options)
+            self.status_engine_label.setText("Engine restored to full strength")
+            logger.info("Anti-engine mode OFF: restored original settings")
+        # Restart analysis with new settings
         if self._continuous_analysis:
-            self.status_engine_label.setText("Ready")
-        else:
-            self.status_engine_label.setText("Ready")
+            self._restart_analysis()
 
     def _on_threat_toggled(self, checked: bool) -> None:
         self._threat_mode = checked
