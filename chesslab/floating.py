@@ -101,6 +101,16 @@ class _TitleBar(QWidget):
         )
         layout.addWidget(self.btn_hint)
 
+        self.btn_human = QPushButton("H")
+        self.btn_human.setFixedSize(24, 24)
+        self.btn_human.setToolTip("Human-Like mode: engine plays at 1800 Elo")
+        self.btn_human.setCheckable(True)
+        self.btn_human.setStyleSheet(
+            "color: #cdd6f4; background: #313244; border: none;"
+            " border-radius: 4px; font-weight: bold;"
+        )
+        layout.addWidget(self.btn_human)
+
         self.btn_close = QPushButton("✕")
         self.btn_close.setFixedSize(24, 24)
         self.btn_close.setToolTip("Close (Esc)")
@@ -197,6 +207,7 @@ class FloatingBoardWindow(QWidget):
         self.title_bar.btn_new.clicked.connect(self._on_new_game)
         self.title_bar.btn_flip.clicked.connect(self._on_flip)
         self.title_bar.btn_hint.clicked.connect(self._on_hint)
+        self.title_bar.btn_human.clicked.connect(self._on_anti_engine)
         self.title_bar.btn_close.clicked.connect(self.close)
         main_layout.addWidget(self.title_bar)
 
@@ -495,6 +506,38 @@ class FloatingBoardWindow(QWidget):
         self.engine.request_best_move(
             self.game.board, self.engine_options.move_time_ms, tag="hint"
         )
+
+    def _on_anti_engine(self) -> None:
+        """Toggle human-like move mode for the floating window."""
+        if not self.engine.is_running:
+            warn(self, "Engine", "Engine is not running yet.")
+            return
+        if not hasattr(self, '_saved_engine_options'):
+            # Save current settings and switch to human-like
+            self._saved_engine_options = EngineOptions(
+                threads=self.engine_options.threads,
+                hash_mb=self.engine_options.hash_mb,
+                skill_level=self.engine_options.skill_level,
+                multipv=self.engine_options.multipv,
+                move_time_ms=self.engine_options.move_time_ms,
+                depth_limit=self.engine_options.depth_limit,
+                infinite_analysis=self.engine_options.infinite_analysis,
+                limit_strength=self.engine_options.limit_strength,
+                uci_elo=self.engine_options.uci_elo,
+            )
+            self.engine_options.skill_level = 15
+            self.engine_options.limit_strength = True
+            self.engine_options.uci_elo = 1800
+            self.engine.set_options(self.engine_options)
+            self.title_bar.set_status("Human-like mode ON")
+        else:
+            # Restore original settings
+            self.engine_options = self._saved_engine_options
+            del self._saved_engine_options
+            self.engine.set_options(self.engine_options)
+            self.title_bar.set_status("ChessLab")
+        if self._continuous_analysis:
+            self._restart_analysis()
 
     def _on_move_attempted(self, move: chess.Move) -> None:
         self.game.push_move(move)
