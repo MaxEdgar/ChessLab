@@ -206,12 +206,6 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self.act_flip)
         toolbar.addSeparator()
 
-        self.act_analyze = QAction("Analyze", self)
-        self.act_analyze.setCheckable(True)
-        self.act_analyze.setChecked(True)
-        self.act_analyze.setShortcut(QKeySequence("Space"))
-        toolbar.addAction(self.act_analyze)
-
         self.act_threat = QAction("Show Threat", self)
         self.act_threat.setCheckable(True)
         self.act_threat.setChecked(False)
@@ -268,7 +262,6 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.act_end)
 
         engine_menu = menu_bar.addMenu("&Engine")
-        engine_menu.addAction(self.act_analyze)
         engine_menu.addAction(self.act_threat)
         engine_menu.addAction(self.act_coach)
         engine_menu.addAction(self.act_anti_engine)
@@ -330,7 +323,6 @@ class MainWindow(QMainWindow):
         self.act_end.triggered.connect(lambda: self._jump(self.game.go_to_end))
 
         self.act_flip.triggered.connect(self._on_flip)
-        self.act_analyze.toggled.connect(self._on_analyze_toggled)
         self.act_threat.toggled.connect(self._on_threat_toggled)
         self.act_coach.toggled.connect(self._on_coach_toggled)
         self.act_anti_engine.toggled.connect(self._on_anti_engine)
@@ -606,13 +598,6 @@ class MainWindow(QMainWindow):
         self.board_view.set_flipped(self.ui_prefs.board_flipped)
         self.app_settings.save_ui_preferences(self.ui_prefs)
 
-    def _on_analyze_toggled(self, checked: bool) -> None:
-        self._continuous_analysis = checked
-        if checked:
-            self._restart_analysis()
-        else:
-            self.engine.stop_analysis()
-
     def _apply_human_like_settings(self) -> None:
         """Switch engine to human-like play (1800 Elo)."""
         if not hasattr(self, '_saved_engine_options'):
@@ -671,22 +656,23 @@ class MainWindow(QMainWindow):
                 self._restart_analysis()
 
     def _on_coach_toggled(self, checked: bool) -> None:
-        """Show Lines: show the engine's recommended move arrow.
+        """Show Lines: toggle engine analysis and best-move arrow.
 
-        Automatically enables continuous analysis when turned on, since
-        Show Lines is useless without it. When turned off, restores the
-        previous analyze state.
+        When ON, starts continuous analysis and shows the arrow.
+        When OFF, stops analysis and hides the arrow.
         """
         self._coach_mode = checked
         if checked:
+            self._continuous_analysis = True
             self.board_view.set_show_best_arrow(True)
-            # Force analysis on -- Show Lines needs it
-            if not self._continuous_analysis:
-                self.act_analyze.setChecked(True)
+            self._restart_analysis()
             self._update_perspective_label()
         else:
-            self.board_view.set_show_best_arrow(self.ui_prefs.show_best_move_arrow)
+            self._continuous_analysis = False
+            self.engine.stop_analysis()
+            self.board_view.set_show_best_arrow(False)
             self.board_view.set_coach_from_square(None)
+            self.board_view.set_best_move(None)
             self.status_perspective_label.setText("")
 
     def _on_set_human_side(self, side: bool) -> None:
