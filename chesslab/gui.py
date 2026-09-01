@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from chesslab.anti_engine import AntiEngineAnalysis
 from chesslab.analysis import GameController
 from chesslab.board import BoardView
 from chesslab.config import AppSettings, EngineOptions, find_stockfish
@@ -86,6 +87,8 @@ class MainWindow(QMainWindow):
 
         self.game = GameController()
         self.engine = EngineManager()
+        self.anti_engine = AntiEngineAnalysis()
+        self.anti_engine.set_engine(self.engine)
         self.tablebase = TablebaseProbe()
         if self.app_settings.syzygy_path:
             self.tablebase.open(self.app_settings.syzygy_path)
@@ -227,6 +230,14 @@ class MainWindow(QMainWindow):
         self.act_coach.setToolTip("Show the engine's recommended move with a blue arrow and highlight the piece to move")
         toolbar.addAction(self.act_coach)
 
+        self.act_anti_engine = QAction("Human-Like Move", self)
+        self.act_anti_engine.setShortcut(QKeySequence("H"))
+        self.act_anti_engine.setToolTip(
+            "Suggest a strong, human-like move instead of a robotic engine line. "
+            "Good for studying professional-quality moves."
+        )
+        toolbar.addAction(self.act_anti_engine)
+
         self.toolbar = toolbar
 
     def _build_menu(self) -> None:
@@ -267,6 +278,7 @@ class MainWindow(QMainWindow):
         engine_menu.addAction(self.act_hint)
         engine_menu.addAction(self.act_threat)
         engine_menu.addAction(self.act_coach)
+        engine_menu.addAction(self.act_anti_engine)
         engine_menu.addSeparator()
         self.act_engine_settings = QAction("Engine Settings...", self)
         engine_menu.addAction(self.act_engine_settings)
@@ -330,6 +342,8 @@ class MainWindow(QMainWindow):
         self.act_hint.triggered.connect(self._on_hint)
         self.act_threat.toggled.connect(self._on_threat_toggled)
         self.act_coach.toggled.connect(self._on_coach_toggled)
+        self.act_anti_engine.triggered.connect(self._on_anti_engine)
+        self.engine.antiEngineCandidates.connect(self._on_anti_engine_candidates)
 
         self.act_engine_settings.triggered.connect(self._on_engine_settings)
         self.act_locate_engine.triggered.connect(self._on_locate_engine)
@@ -379,11 +393,11 @@ class MainWindow(QMainWindow):
         self._check_game_over()
         if self._threat_mode and self.engine.is_running:
             # Stop analysis before requesting threat — play() can't run
-            # concurrently with analysis. Analysis restarts after the threat
-            # result arrives (see ``_on_one_shot_move``).
+            # concurrently with analysis. Do NOT restart analysis here;
+            # it will be resumed when the user toggles threat mode off.
             self.engine.stop_analysis()
             self._request_threat()
-        elif self._continuous_analysis and self.engine.is_running:
+        elif self._continuous_analysis and self.engine.is_running and not self._threat_mode:
             self._restart_analysis()
 
     def _on_history_changed(self) -> None:
@@ -476,19 +490,20 @@ class MainWindow(QMainWindow):
         # _on_info_updated will overwrite with depth; if not, go to Ready.
         if not self._continuous_analysis:
             self.status_engine_label.setText("Ready")
-        if move is None:
-            return
         if tag == "best":
-            self.game.push_move(move)
+            if move is not None:
+                self.game.push_move(move)
         elif tag == "hint":
-            self.board_view.set_best_move(move)
-            info(self, "Hint", f"Engine suggests: {self.game.board.san(move)}")
+            if move is not None:
+                self.board_view.set_best_move(move)
+                info(self, "Hint", f"Engine suggests: {self.game.board.san(move)}")
         elif tag == "threat":
             if self._threat_mode:
+                # Show the threat arrow if a threat was found, otherwise
+                # clear any stale threat arrow from the previous position.
                 self.board_view.set_threat_move(move)
-                # Restart continuous analysis now that the threat search is done
-                if self._continuous_analysis and self.engine.is_running:
-                    self._restart_analysis()
+                # Do NOT restart analysis here — it stays paused while threat
+                # mode is on. Analysis resumes when the user toggles threat off.
 
     def _check_game_over(self) -> None:
         """Detect checkmate, stalemate, or other game-ending conditions
@@ -616,6 +631,44 @@ class MainWindow(QMainWindow):
             warn(self, "Engine", "Engine is not running yet.")
             return
         self.engine.request_best_move(self.game.board, self.engine_options.move_time_ms, tag="hint")
+
+    def _on_anti_engine(self) -> None:
+        """Request a human-like move from the anti-engine analysis."""
+        if not self.engine.is_running:
+            warn(self, "Engine", "Engine is not running yet.")
+            return
+        self.status_engine_label.setText("Finding human-like move...")
+        self.anti_engine.analyze(self.game.board, self.engine_options.move_time_ms)
+
+    def _on_anti_engine_candidates(self, candidates: list) -> None:
+        """Handle the result from the anti-engine analysis."""
+        move = self.anti_engine.get_best_human_move()
+        if move is not None:
+            # Show the move with a special green arrow on the board
+            self.board_view.set_best_move(move)
+            san = self.game.board.san(move)
+            # Find the human-like score for the status bar
+            best_c = self.anti_engine.get_candidates()[0] if self.anti_engine.get_candidates() else None
+            if best_c:
+                info(
+                    self,
+                    "Human-Like Move",
+                    f"Suggested move: {san}\n\n"
+                    f"Engine eval: {best_c.engine_score / 100:+.2f}\n"
+                    f"Human score: {best_c.human_score:.0f}\n"
+                    f"Combined: {best_c.combined:.0f}\n\n"
+                    f"This move is strong AND looks natural -- "
+                    f"the kind of move a professional would play.",
+                )
+            else:
+                info(self, "Human-Like Move", f"Suggested move: {san}")
+        else:
+            info(self, "Human-Like Move", "No human-like move found for this position.")
+        # Restore engine status
+        if self._continuous_analysis:
+            self.status_engine_label.setText("Ready")
+        else:
+            self.status_engine_label.setText("Ready")
 
     def _on_threat_toggled(self, checked: bool) -> None:
         self._threat_mode = checked

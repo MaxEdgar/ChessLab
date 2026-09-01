@@ -284,6 +284,50 @@ class EngineManager(QObject):
             logger.exception("play() failed")
             self.oneShotMoveReady.emit(None, tag)
 
+    # -- anti-engine analysis ------------------------------------------------
+    antiEngineCandidates = Signal(object)  # emits list of (move, score, pv) tuples
+
+    def request_anti_engine_analysis(
+        self, board: chess.Board, movetime_ms: int, multipv: int = 5
+    ) -> None:
+        """One-shot MultiPV search for anti-engine human-like move selection.
+
+        Returns results via ``antiEngineCandidates`` signal.
+        """
+        self._run_coro(
+            self._async_anti_engine(board.copy(), movetime_ms, multipv)
+        )
+
+    async def _async_anti_engine(
+        self, board: chess.Board, movetime_ms: int, multipv: int
+    ) -> None:
+        if self._engine is None:
+            self.antiEngineCandidates.emit([])
+            return
+        if self._analysis is not None:
+            self._analysis.stop()
+            try:
+                await asyncio.wait_for(self._analysis.wait(), timeout=0.2)
+            except Exception:  # noqa: BLE001
+                pass
+            self._analysis = None
+        try:
+            limit = chess.engine.Limit(time=max(0.05, movetime_ms / 1000.0))
+            analysis = await self._engine.analysis(
+                board, limit, multipv=multipv
+            )
+            candidates = []
+            async for info in analysis:
+                pv = info.get("pv", [])
+                score = info.get("score")
+                if pv and score is not None:
+                    candidates.append((pv[0], score, pv))
+            analysis.stop()
+            self.antiEngineCandidates.emit(candidates)
+        except Exception:  # noqa: BLE001
+            logger.exception("anti-engine analysis failed")
+            self.antiEngineCandidates.emit([])
+
     # -- helpers -----------------------------------------------------------
     def _run_coro(self, coro) -> None:
         loop = self._thread.loop
