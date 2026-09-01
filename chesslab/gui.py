@@ -671,13 +671,16 @@ class MainWindow(QMainWindow):
                 self._restart_analysis()
 
     def _on_coach_toggled(self, checked: bool) -> None:
-        """Coach mode: show the engine's recommended move with a blue arrow
-        and highlight the piece, but ONLY when it's YOUR turn. Never shows
-        the opponent's predicted move.
+        """Show Lines: show the engine's recommended move arrow.
+
+        Automatically enables continuous analysis when turned on, since
+        Show Lines is useless without it. When turned off, restores the
+        previous analyze state.
         """
         self._coach_mode = checked
         if checked:
             self.board_view.set_show_best_arrow(True)
+            # Force analysis on -- Show Lines needs it
             if not self._continuous_analysis:
                 self.act_analyze.setChecked(True)
             self._update_perspective_label()
