@@ -158,6 +158,46 @@ class EngineSettingsDialog(QDialog):
         self.infinite_check.setChecked(options.infinite_analysis)
         form.addRow(self.infinite_check)
 
+        self.limit_strength_check = QCheckBox("Limit strength (human-like play)")
+        self.limit_strength_check.setChecked(options.limit_strength)
+        self.limit_strength_check.setToolTip(
+            "Enable UCI_LimitStrength so the engine plays at a human-like level "
+            "instead of full strength. Adjust Skill Level and Elo below."
+        )
+        form.addRow(self.limit_strength_check)
+
+        self.elo_spin = QSpinBox()
+        self.elo_spin.setRange(1320, 3190)
+        self.elo_spin.setSingleStep(50)
+        self.elo_play = options.uci_elo
+        self.elo_spin.setValue(options.uci_elo)
+        self.elo_spin.setSuffix(" Elo")
+        self.elo_spin.setToolTip(
+            "Target Elo when limit strength is enabled. "
+            "Lower = weaker / more human-like. Typical range: 1320-2500."
+        )
+        form.addRow("Target Elo", self.elo_spin)
+
+        # Quick presets row
+        presets_row = QHBoxLayout()
+        btn_human = QPushButton("Human (~1500)")
+        btn_human.setToolTip("Set skill level 12, limit strength on, 1500 Elo")
+        btn_human.clicked.connect(self._preset_human)
+        presets_row.addWidget(btn_human)
+        btnIntermediate = QPushButton("Intermediate (~1800)")
+        btnIntermediate.setToolTip("Set skill level 15, limit strength on, 1800 Elo")
+        btnIntermediate.clicked.connect(self._preset_intermediate)
+        presets_row.addWidget(btnIntermediate)
+        btn_strong = QPushButton("Strong (~2200)")
+        btn_strong.setToolTip("Set skill level 18, limit strength on, 2200 Elo")
+        btn_strong.clicked.connect(self._preset_strong)
+        presets_row.addWidget(btn_strong)
+        btn_full = QPushButton("Full Strength")
+        btn_full.setToolTip("Set skill level 20, limit strength off")
+        btn_full.clicked.connect(self._preset_full)
+        presets_row.addWidget(btn_full)
+        form.addRow("Presets", presets_row)
+
         layout.addLayout(form)
 
         display_form = QFormLayout()
@@ -211,6 +251,26 @@ class EngineSettingsDialog(QDialog):
         text = self.tablebase_edit.text().strip()
         return text or None
 
+    def _preset_human(self) -> None:
+        self.skill_spin.setValue(12)
+        self.limit_strength_check.setChecked(True)
+        self.elo_spin.setValue(1500)
+
+    def _preset_intermediate(self) -> None:
+        self.skill_spin.setValue(15)
+        self.limit_strength_check.setChecked(True)
+        self.elo_spin.setValue(1800)
+
+    def _preset_strong(self) -> None:
+        self.skill_spin.setValue(18)
+        self.limit_strength_check.setChecked(True)
+        self.elo_spin.setValue(2200)
+
+    def _preset_full(self) -> None:
+        self.skill_spin.setValue(20)
+        self.limit_strength_check.setChecked(False)
+        self.elo_spin.setValue(3190)
+
     def result_options(self) -> EngineOptions:
         return EngineOptions(
             threads=self.threads_spin.value(),
@@ -220,6 +280,8 @@ class EngineSettingsDialog(QDialog):
             move_time_ms=self.movetime_spin.value(),
             depth_limit=self.depth_spin.value(),
             infinite_analysis=self.infinite_check.isChecked(),
+            limit_strength=self.limit_strength_check.isChecked(),
+            uci_elo=self.elo_spin.value(),
         )
 
     def result_prefs(self) -> UiPreferences:

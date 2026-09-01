@@ -47,6 +47,17 @@ if ! "$PYTHON" -c "import chesslab" 2>/dev/null; then
     }
 fi
 
+# ─── Bundled Stockfish ───────────────────────────────────────────────────
+# If Stockfish isn't on PATH but we ship one, put it on PATH so
+# ChessLab's auto-detection finds it without a system-wide install.
+if ! command -v stockfish &>/dev/null; then
+    BUNDLED_SF="$REPO_DIR/stockfish/stockfish"
+    if [ -x "$BUNDLED_SF" ]; then
+        export PATH="$(dirname "$BUNDLED_SF"):$PATH"
+        echo -e "${DIM}Using bundled Stockfish at $BUNDLED_SF${NC}"
+    fi
+fi
+
 # ─── Launch ──────────────────────────────────────────────────────────────
 echo -e "${GREEN}Starting ChessLab...${NC}"
 # Pass any command-line arguments (e.g. --float) through to Python

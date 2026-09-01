@@ -36,11 +36,18 @@ LOG_FILE = LOG_DIR / "chesslab.log"
 DEFAULT_ENGINE_THREADS = max(1, (os.cpu_count() or 4) - 1)
 DEFAULT_ENGINE_HASH_MB = 256
 DEFAULT_MULTIPV = 1
-DEFAULT_SKILL_LEVEL = 20  # 0-20, 20 = full strength
+DEFAULT_SKILL_LEVEL = 12  # 0-20, 20 = full strength; 12 = human-like ~1500 Elo
 DEFAULT_MOVE_TIME_MS = 3000
 DEFAULT_DEPTH_LIMIT = 0  # 0 = unlimited / time-based
+DEFAULT_LIMIT_STRENGTH = True  # enable UCI_LimitStrength for human-like play
+DEFAULT_UCI_ELO = 1500  # target Elo when limit_strength is on
 
 SQUARE_SIZE_DEFAULT = 72
+
+# Bundled Stockfish location (shipped with ChessLab).
+_REPO_DIR = Path(__file__).resolve().parent.parent
+_BUNDLED_STOCKFISH = _REPO_DIR / "stockfish" / "stockfish"
+_BUNDLED_STOCKFISH_EXE = _REPO_DIR / "stockfish" / "stockfish.exe"
 
 # Common install locations checked when Stockfish isn't found on PATH.
 _COMMON_STOCKFISH_PATHS_LINUX = [
@@ -61,15 +68,24 @@ _COMMON_STOCKFISH_PATHS_WINDOWS = [
 
 
 def find_stockfish() -> Optional[str]:
-    """Search PATH and common install directories for a Stockfish binary.
+    """Search bundled directory, PATH, and common install locations for a
+    Stockfish binary.  The bundled copy (inside ``stockfish/``) is checked
+    first so ChessLab works out of the box without a system-wide install.
 
     Returns the absolute path as a string if found, otherwise ``None``.
     """
+    # 1. Bundled binary shipped with ChessLab
+    bundled = _BUNDLED_STOCKFISH_EXE if platform.system() == "Windows" else _BUNDLED_STOCKFISH
+    if bundled.is_file():
+        return str(bundled)
+
+    # 2. On PATH
     for candidate in ("stockfish", "stockfish.exe"):
         found = shutil.which(candidate)
         if found:
             return found
 
+    # 3. Common install directories
     system = platform.system()
     if system == "Windows":
         candidates = _COMMON_STOCKFISH_PATHS_WINDOWS
@@ -95,17 +111,45 @@ class EngineOptions:
     move_time_ms: int = DEFAULT_MOVE_TIME_MS
     depth_limit: int = DEFAULT_DEPTH_LIMIT
     infinite_analysis: bool = True
+    limit_strength: bool = DEFAULT_LIMIT_STRENGTH
+    uci_elo: int = DEFAULT_UCI_ELO
 
     def to_uci_dict(self) -> dict:
         # Note: MultiPV is intentionally omitted here. python-chess's
         # engine.analysis()/engine.play() manage MultiPV automatically via
         # their own `multipv=` argument, and calling configure() with it
         # raises "cannot set MultiPV which is automatically managed".
-        return {
+        opts: dict = {
             "Threads": self.threads,
             "Hash": self.hash_mb,
             "Skill Level": self.skill_level,
         }
+        if self.limit_strength:
+            opts["UCI_LimitStrength"] = True
+            opts["UCI_Elo"] = max(1320, min(self.uci_elo, 3190))
+        else:
+            opts["UCI_LimitStrength"] = False
+        return opts
+
+    @classmethod
+    def human_like(cls) -> EngineOptions:
+        """Return a preset configured for human-like play (~1500 Elo)."""
+        return cls(
+            skill_level=12,
+            limit_strength=True,
+            uci_elo=1500,
+            infinite_analysis=True,
+        )
+
+    @classmethod
+    def full_strength(cls) -> EngineOptions:
+        """Return a preset configured for maximum engine strength."""
+        return cls(
+            skill_level=20,
+            limit_strength=False,
+            uci_elo=3190,
+            infinite_analysis=True,
+        )
 
 
 @dataclass
@@ -156,6 +200,10 @@ class AppSettings:
             infinite_analysis=self._qs.value(
                 "engine/infinite", defaults.infinite_analysis, type=bool
             ),
+            limit_strength=self._qs.value(
+                "engine/limit_strength", defaults.limit_strength, type=bool
+            ),
+            uci_elo=int(self._qs.value("engine/uci_elo", defaults.uci_elo)),
         )
 
     def save_engine_options(self, opts: EngineOptions) -> None:
@@ -166,6 +214,8 @@ class AppSettings:
         self._qs.setValue("engine/move_time_ms", opts.move_time_ms)
         self._qs.setValue("engine/depth_limit", opts.depth_limit)
         self._qs.setValue("engine/infinite", opts.infinite_analysis)
+        self._qs.setValue("engine/limit_strength", opts.limit_strength)
+        self._qs.setValue("engine/uci_elo", opts.uci_elo)
 
     # -- ui ----------------------------------------------------------------
     def load_ui_preferences(self) -> UiPreferences:
