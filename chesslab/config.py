@@ -36,11 +36,11 @@ LOG_FILE = LOG_DIR / "chesslab.log"
 DEFAULT_ENGINE_THREADS = max(1, (os.cpu_count() or 4) - 1)
 DEFAULT_ENGINE_HASH_MB = 256
 DEFAULT_MULTIPV = 1
-DEFAULT_SKILL_LEVEL = 12  # 0-20, 20 = full strength; 12 = human-like ~1500 Elo
+DEFAULT_SKILL_LEVEL = 18  # 0-20, 20 = full strength; 18 = strong human ~2200 Elo
 DEFAULT_MOVE_TIME_MS = 3000
 DEFAULT_DEPTH_LIMIT = 0  # 0 = unlimited / time-based
 DEFAULT_LIMIT_STRENGTH = True  # enable UCI_LimitStrength for human-like play
-DEFAULT_UCI_ELO = 1500  # target Elo when limit_strength is on
+DEFAULT_UCI_ELO = 2200  # target Elo when limit_strength is on
 
 SQUARE_SIZE_DEFAULT = 72
 
@@ -133,11 +133,11 @@ class EngineOptions:
 
     @classmethod
     def human_like(cls) -> EngineOptions:
-        """Return a preset configured for human-like play (~1500 Elo)."""
+        """Return a preset configured for strong human-like play (~2200 Elo)."""
         return cls(
-            skill_level=12,
+            skill_level=18,
             limit_strength=True,
-            uci_elo=1500,
+            uci_elo=2200,
             infinite_analysis=True,
         )
 
