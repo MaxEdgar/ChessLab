@@ -651,6 +651,12 @@ class MainWindow(QMainWindow):
         White always starts first in chess.
         """
         self._human_side = side
+        # Flip board so the human's pieces are at the bottom.
+        # Black at bottom when playing Black, White at bottom when playing White.
+        should_flip = side == chess.BLACK
+        self.ui_prefs.board_flipped = should_flip
+        self.board_view.set_flipped(should_flip)
+        self.app_settings.save_ui_preferences(self.ui_prefs)
         self._update_perspective_label()
         # Force clear/reset the coach arrow so stale opponent moves vanish
         self.board_view.set_best_move(None)

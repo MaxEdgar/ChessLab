@@ -509,6 +509,10 @@ class FloatingBoardWindow(QWidget):
 
     def _on_set_human_side(self, side: bool) -> None:
         self._human_side = side
+        # Flip board so the human's pieces are at the bottom.
+        should_flip = side == chess.BLACK
+        self.ui_prefs.board_flipped = should_flip
+        self.board_view.set_flipped(should_flip)
         self.board_view.set_best_move(None)
         self.board_view.set_coach_from_square(None)
         self._update_status()
